@@ -42,12 +42,14 @@ data Scene = Scene { _position :: (Int, Int) }
 
 $(makeLenses ''Scene)
 
+type Draw = Renderer -> IO ()
+
 main :: IO ()
 main = do
   initializeAll
   window <- createWindow "Lonely Rectangle" defaultWindow
   renderer <- createRenderer window (-1) defaultRenderer
-  appLoop renderer $ Scene (50, 50)
+  appLoop renderer $ appWire $ Scene (50, 50)
 
 createRect :: (Integral i, Num r) => (i, i) -> (i, i) -> Rectangle r
 createRect (x, y) (w, h) =
@@ -55,8 +57,8 @@ createRect (x, y) (w, h) =
   let dimensions = V2 (fromIntegral w) (fromIntegral h) in
   Rectangle leftCorner dimensions
 
-renderScene :: Renderer -> Scene -> IO ()
-renderScene renderer (Scene position) = do
+renderScene :: Scene -> Renderer -> IO ()
+renderScene (Scene position) renderer = do
   rendererDrawColor renderer $= V4 0 0 255 255
   clear renderer
   rendererDrawColor renderer $= V4 0 255 0 255
@@ -101,10 +103,20 @@ updateScene scene = foldr applyEvent scene . onlySceneEvents
     applyEvent (Move MoveUp) = (position . _2) `over` subtract 10
     applyEvent (Move MoveDown) = (position . _2) `over` (+10)
 
-appLoop :: Renderer -> Scene -> IO ()
-appLoop renderer scene = do
+appWire :: Scene -> Wire.Wire () e IO Events Draw
+appWire init = proc events -> do
+  rec
+    scene <- Wire.delay init -< scene'
+    let scene' = flip updateScene events scene
+  Wire.returnA -< renderScene scene
+
+appLoop :: Renderer -> Wire.Wire () e IO Events Draw -> IO ()
+appLoop renderer w = do
   events <- parseEvents <$> pollEvents
-  let scene' = updateScene scene events
-  renderScene renderer scene'
-  present renderer
-  unless (Set.member Quit events) $ appLoop renderer scene'
+  (r, w') <- Wire.stepWire w () (Right events)
+  case r of
+    Left _ -> return ()
+    Right draw -> do
+      draw renderer
+      present renderer
+      unless (Set.member Quit events) $ appLoop renderer w'
