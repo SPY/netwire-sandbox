@@ -59,8 +59,6 @@ createRect (x, y) (w, h) =
 
 renderScene :: Scene -> Renderer -> IO ()
 renderScene (Scene position) renderer = do
-  rendererDrawColor renderer $= V4 0 0 255 255
-  clear renderer
   rendererDrawColor renderer $= V4 0 255 0 255
   fillRect renderer $ Just $ createRect position (100, 100)
 
@@ -117,6 +115,8 @@ appLoop renderer w = do
   case r of
     Left _ -> return ()
     Right draw -> do
+      rendererDrawColor renderer $= V4 0 0 255 255
+      clear renderer
       draw renderer
       present renderer
       unless (Set.member Quit events) $ appLoop renderer w'
