@@ -44,6 +44,9 @@ $(makeLenses ''Scene)
 
 type Draw = Renderer -> IO ()
 
+height = 50
+width = 50
+
 main :: IO ()
 main = do
   initializeAll
@@ -60,7 +63,7 @@ createRect (x, y) (w, h) =
 renderScene :: Scene -> Renderer -> IO ()
 renderScene (Scene position) renderer = do
   rendererDrawColor renderer $= V4 0 255 0 255
-  fillRect renderer $ Just $ createRect position (100, 100)
+  fillRect renderer $ Just $ createRect position (height, width)
 
 parseEvents :: [SDLEvent.Event] -> Events
 parseEvents = foldl parseEvent Set.empty
@@ -101,22 +104,19 @@ updateScene scene = foldr applyEvent scene . onlySceneEvents
     applyEvent (Move MoveUp) = (position . _2) `over` subtract 10
     applyEvent (Move MoveDown) = (position . _2) `over` (+10)
 
-appWire :: Scene -> Wire.Wire () e IO Events Draw
+appWire :: Scene -> Wire.Wire Int e IO Events Draw
 appWire init = proc events -> do
   rec
     scene <- Wire.delay init -< scene'
     let scene' = flip updateScene events scene
   Wire.returnA -< renderScene scene
 
-appLoop :: Renderer -> Wire.Wire () e IO Events Draw -> IO ()
+appLoop :: Renderer -> Wire.Wire Int e IO Events Draw -> IO ()
 appLoop renderer w = do
   events <- parseEvents <$> pollEvents
-  (r, w') <- Wire.stepWire w () (Right events)
-  case r of
-    Left _ -> return ()
-    Right draw -> do
-      rendererDrawColor renderer $= V4 0 0 255 255
-      clear renderer
-      draw renderer
-      present renderer
-      unless (Set.member Quit events) $ appLoop renderer w'
+  (Right draw, w') <- Wire.stepWire w 0 (Right events)
+  rendererDrawColor renderer $= V4 0 0 255 255
+  clear renderer
+  draw renderer
+  present renderer
+  unless (Set.member Quit events) $ appLoop renderer w'
